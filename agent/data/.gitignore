@@ -1,0 +1,7 @@
+# Local activity-event database (durable event log, not committed)
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.lock
