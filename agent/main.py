@@ -1,4 +1,5 @@
 import platform
+import threading
 import time
 from datetime import datetime, timezone
 
@@ -35,7 +36,12 @@ def create_collector():
     )
 
 
-def main():
+def run(stop_event=None):
+    """Run the agent loop until ``stop_event`` is set (or Ctrl+C in a
+    console). Returns after a clean shutdown."""
+    if stop_event is None:
+        stop_event = threading.Event()
+
     collector = create_collector()
 
     lock = InstanceLock(DB_PATH.parent / f"{DB_PATH.name}.lock")
@@ -55,7 +61,7 @@ def main():
     )
 
     try:
-        while True:
+        while not stop_event.is_set():
             tracker.observe()
             time.sleep(POLL_INTERVAL_SECONDS)
     except KeyboardInterrupt:
@@ -63,6 +69,11 @@ def main():
     finally:
         storage.close()
         lock.release()
+
+
+def main():
+    """Console entry point: runs until Ctrl+C."""
+    run()
 
 
 if __name__ == "__main__":

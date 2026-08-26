@@ -1,4 +1,5 @@
 import importlib
+import sys
 from pathlib import Path
 
 import agent.config as config_module
@@ -22,3 +23,12 @@ def test_config_reflects_env_overrides(monkeypatch):
 def test_db_path_defaults_under_agent_data():
     assert config_module.DEFAULT_DB_PATH.parent.name == "data"
     assert config_module.DEFAULT_DB_PATH.name == "activity_events.db"
+
+
+def test_config_frozen_uses_home_data_dir(monkeypatch):
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    importlib.reload(config_module)
+
+    assert config_module.DEFAULT_DB_PATH == (
+        Path.home() / ".attlytics" / "data" / "activity_events.db"
+    )
