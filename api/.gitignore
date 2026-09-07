@@ -1,0 +1,15 @@
+# Environment & secrets
+.env
+
+# Virtualenv
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Tooling
+.pytest_cache/
+.coverage
+htmlcov/
