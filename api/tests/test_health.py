@@ -7,14 +7,14 @@ from app.main import app
 class FakeSession:
     """Minimal stand-in so the test does not need a running Postgres."""
 
-    def execute(self, *args, **kwargs):
+    async def execute(self, *args, **kwargs):
         return None
 
-    def close(self):
+    async def close(self):
         return None
 
 
-def override_get_db():
+async def override_get_db():
     yield FakeSession()
 
 

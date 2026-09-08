@@ -1,15 +1,15 @@
 import logging
 
 from sqlalchemy import text
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
 
-def check_database(db: Session) -> tuple[bool, str]:
+async def check_database(db: AsyncSession) -> tuple[bool, str]:
     """Return (ok, detail): can we reach Postgres right now?"""
     try:
-        db.execute(text("SELECT 1"))
+        await db.execute(text("SELECT 1"))
         return True, "up"
     except Exception as exc:  # noqa: BLE001
         logger.exception("Database health check failed")
@@ -47,7 +47,7 @@ def check_database(db: Session) -> tuple[bool, str]:
 #         return False, f"error ({type(exc).__name__})"
 #
 #
-# def check_ingest_freshness(db: Session) -> tuple[bool, str]:
+# async def check_ingest_freshness(db: AsyncSession) -> tuple[bool, str]:
 #     """(ok, detail) whether heartbeats have arrived recently."""
 #     try:
 #         # newest = db.scalar(select(func.max(Heartbeat.received_at)))
@@ -62,14 +62,14 @@ def check_database(db: Session) -> tuple[bool, str]:
 # ---------------------------------------------------------------------------
 
 
-def build_health_report(db: Session, version: str) -> dict[str, str]:
+async def build_health_report(db: AsyncSession, version: str) -> dict[str, str]:
     """Run the enabled probes and aggregate them into a health report.
 
     Returns a dict whose keys map 1:1 onto schemas.health.HealthResponse.
     """
     checks: dict[str, str] = {}
 
-    db_ok, db_detail = check_database(db)
+    db_ok, db_detail = await check_database(db)
     checks["database"] = db_detail
 
     # Enable additional probes here as their dependencies come online, e.g.:

@@ -1,26 +1,21 @@
-from collections.abc import Iterator
+from collections.abc import AsyncIterator
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from app.core.config import get_settings
 
 settings = get_settings()
 
-engine = create_engine(settings.database_url, pool_pre_ping=True)
+engine = create_async_engine(settings.database_url, pool_pre_ping=True)
 
-SessionLocal = sessionmaker(
-    bind=engine,
-    autocommit=False,
-    autoflush=False,
-    expire_on_commit=False,
-)
+SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 
-def get_db() -> Iterator[Session]:
-    """FastAPI dependency: yield one session per request, always close it."""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+async def get_db() -> AsyncIterator[AsyncSession]:
+    """FastAPI dependency: yield one async session per request, always close it."""
+    async with SessionLocal() as session:
+        yield session

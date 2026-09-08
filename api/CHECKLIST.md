@@ -1,51 +1,62 @@
 # API Production Checklist
 
-Status key: ✅ wired into the scaffold · ⬜ still to do before you ship
+Status key: ✅ wired into the scaffold · ⬜ still to do (listed in the order you should do them)
 
-## 1. 🔐 Authentication & Authorization
-- ✅ scaffold is open by default (only `/health` and `POST /heartbeats` exist)
-- ⬜ pick user auth (OAuth2/JWT/API keys) and protect `/api/v1`
-- ⬜ **device auth for the push endpoint** — per-device API key or HMAC-signed payloads on `POST /heartbeats`
-- ⬜ scope/permission checks per resource, not just "is logged in"
+## 0. Foundations — do first, everything builds on this
+- ⬜ **refresh the migration baseline** — model has outrun `alembic/0001` (missing `local_id`/UUIDs/timestamp type); make `alembic upgrade head` work on a dev DB
+- ✅ structured logs with env-driven `LOG_LEVEL` (logging seed is already here)
+- ⬜ **request-id middleware** → every log line carries a correlation id (cheap now, painful to retrofit)
+- ✅ `/api/v1/health` DB readiness probe (your first monitoring signal)
+- ⬜ expand readiness: migration state + last-ingest freshness (see `services/health.py`)
+- ⬜ stand up ephemeral-Postgres tests (testcontainers) and write tests *with* each feature
 
-## 2. 🔒 Data Protection & Transmission
-- ✅ secrets only in `.env` (git-ignored); `DATABASE_URL` never hardcoded
-- ⬜ TLS end-to-end (terminate at proxy/platform) + HSTS
-- ⬜ prod secrets from a secret store (Key Vault/SSM), rotated — never committed
-- ⬜ least-privilege Postgres role + private network (no public DB port)
-- ⬜ no sensitive data (window titles, tokens, PII) in logs or error bodies
+## 1. Identity & data model — user, device, sessions
+- ⬜ add `users`, `devices`, `sessions` models (with migrations)
+- ⬜ **add `device_id` FK to `heartbeats`** — without attribution there is no multi-device tracking
+- ⬜ **make `local_id` unique per device** (`UNIQUE(device_id, local_id)`) — it's globally unique today, which breaks at device #2
+- ⬜ enrollment: register device → server issues `device_id` + one-time device secret; store only a hash server-side; rotate/revoke
+- ⬜ user auth (OAuth2/JWT/API keys) with scope/permission checks, not just "is logged in"
 
-## 3. 🚧 Traffic Management & Abuse Prevention
-- ✅ CORS allow-list via `CORS_ORIGINS`
-- ✅ idempotent ingest — duplicate `local_id`s skipped (`ON CONFLICT DO NOTHING`)
-- ⬜ rate limiting / throttling per device key + IP (slowapi or platform gateway)
+## 2. Device auth & ingestion security
+- ⬜ **device auth on `POST /heartbeats`** — per-device API key or HMAC; stamp `device_id` from auth, never trust the body
+- ⬜ scope every read/write to the authenticated owner (no cross-tenant data)
+- ✅ Pydantic schemas validate requests; enum allow-lists via `app/choices.py`
+- ⬜ reject impossible values (future timestamps, absurd durations, oversized strings)
+- ⬜ central exception handler → one consistent JSON error shape + correlation id, no stack traces
+
+## 3. On-device sync worker
+- ⬜ read `PENDING` events from local SQLite; batch-POST with device auth; mark `SYNCED`/`FAILED` + retry with backoff; offline buffering
+
+## 4. Server-side sessionization
+- ⬜ decide inline-vs-worker (recommend out-of-band worker as devices grow); append-only events → derived `sessions`; idempotent/backfill-safe; handle device clock skew
+
+## 5. Analytics endpoints
+- ⬜ time-per-app/day/user/device; sessions; aggregates in SQL; owner-scoped + paginated
+
+## 6. Abuse prevention & monitoring
+- ⬜ rate limiting per device key + IP (slowapi or platform gateway) — needs Phase 2 keys, keep the per-key hook
 - ⬜ batch-size and payload-size caps on `POST /heartbeats`
 - ⬜ trust only a known reverse proxy (`trustedhosts` + proxy headers); disable `/docs` in prod
+- ⬜ **metrics (Prometheus)** — request volume/latency, ingest lag, DB pool usage
+- ⬜ **alerts** on 5xx / stale ingest / queue backlog
+- ⬜ **log hygiene** — no window titles, tokens, or PII in logs/error bodies; ship logs to a sink (aggregation/search) with the request-id
 
-## 4. 🧪 Input Validation & Error Handling
-- ✅ Pydantic schemas validate requests; enum allow-lists via `app/choices.py`
-- ⬜ reject impossible values (timestamps in the future, absurd durations, oversized strings)
-- ⬜ central exception handler → one consistent JSON error shape + correlation id, no stack traces
-- ⬜ DB-level constraints/checks that mirror API validation (not just app-layer)
+## 7. Privacy & data retention
+- ⬜ activity telemetry (window titles) is personal data — retention window + purge job
+- ⬜ data minimization + opt-out/consent story + privacy notice
 
-## 5. 📝 Docs, Inventory & Monitoring
-- ✅ auto docs + versioned OpenAPI; `/api/v1/health` DB readiness probe
-- ✅ structured logs with env-driven `LOG_LEVEL`
-- ⬜ request-id middleware + metrics (Prometheus) + alerts on 5xx / stale ingest
+## 8. Deployment & operational resilience
+- ⬜ API + sessionizer worker as separate containers; migrations as a deploy job; fail deploy if `alembic current != head`
+- ✅ secrets only in `.env` (git-ignored); `DATABASE_URL` never hardcoded
+- ⬜ prod secrets from a secret store, rotated; least-privilege Postgres role + private network
+- ⬜ TLS end-to-end + HSTS
+- ⬜ Postgres backups (`pg_dump` / WAL archiving) with a **tested restore**
+- ⬜ monitoring dashboard for the metrics/alerts from Phase 6
 - ⬜ written API inventory; audit which environments expose OpenAPI
 
-## 6. 🕵️ Privacy & Data Retention
-- ⬜ activity telemetry (process names, window titles) is personal data — set a retention window + purge job
-- ⬜ data minimization (store window titles long-term?) and opt-out/consent story
-- ⬜ document what each device sends and how it's used (privacy notice)
-
-## 7. 💾 Operational Resiliency & Backups
-- ⬜ Postgres backups (`pg_dump` / WAL archiving) with a tested restore
-- ⬜ migration run/rollback procedure; fail deploy if `alembic current != head`
-- ⬜ readiness includes migration state and last-ingest freshness (see `services/health.py`)
-
-## 8. 🧪 Testing & CI Security
-- ⬜ integration tests against a real Postgres (testcontainers/ephemeral DB)
-- ⬜ test the idempotent path (duplicate batch → `skipped`, no error)
-- ⬜ dependency audit (`pip-audit`), secret scanning, and lint/SAST in CI
+## 9. Testing & CI (continuous — not a final phase)
+- ✅ health endpoint smoke test (async fake-session)
+- ⬜ integration tests against real Postgres: auth, ingest, idempotent path (duplicate → `skipped`)
+- ⬜ sessionization + analytics tests (ordering, gaps, cross-tenant isolation)
+- ⬜ dependency audit (`pip-audit`), secret scanning, lint/SAST in CI
 

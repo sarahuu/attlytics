@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.schemas.heartbeat import HeartbeatCreate, HeartbeatIngestResult
@@ -14,9 +14,9 @@ router = APIRouter(tags=["heartbeats"])
     status_code=status.HTTP_201_CREATED,
     summary="Ingest a batch of heartbeats pushed from a device",
 )
-def ingest_heartbeats(
+async def ingest_heartbeats(
     payloads: list[HeartbeatCreate],
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> HeartbeatIngestResult:
-    received, skipped = service.ingest_heartbeats(db, payloads)
+    received, skipped = await service.ingest_heartbeats(db, payloads)
     return HeartbeatIngestResult(received=received, skipped=skipped)

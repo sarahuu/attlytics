@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import List
+from typing import List, Union
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -22,7 +22,7 @@ class Settings(BaseSettings):
 
     database_url: str
 
-    cors_origins: List[str]
+    cors_origins: Union[str, List[str]]
 
     @field_validator("cors_origins", mode="before")
     @classmethod

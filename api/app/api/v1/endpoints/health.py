@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import __version__
 from app.db.session import get_db
@@ -14,6 +14,6 @@ router = APIRouter(tags=["health"])
     response_model=HealthResponse,
     summary="Liveness and readiness probe",
 )
-def health(db: Session = Depends(get_db)) -> HealthResponse:
-    report = build_health_report(db, version=__version__)
+async def health(db: AsyncSession = Depends(get_db)) -> HealthResponse:
+    report = await build_health_report(db, version=__version__)
     return HealthResponse(**report)
