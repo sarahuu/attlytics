@@ -7,7 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import __version__
 from app.api.v1.router import api_router
 from app.core.config import get_settings
-from app.core.logging import setup_logging
+from app.core.logging import setup_logging, RequestLoggingMiddleware
+
 
 settings = get_settings()
 setup_logging(settings.log_level)
@@ -32,7 +33,7 @@ def create_app() -> FastAPI:
         redoc_url="/redoc" if docs_enabled else None,
         openapi_url=f"{settings.api_v1_prefix}/openapi.json" if docs_enabled else None,
     )
-
+    application.add_middleware(RequestLoggingMiddleware)
     application.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

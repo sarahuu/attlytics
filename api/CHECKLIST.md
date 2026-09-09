@@ -5,7 +5,7 @@ Status key: ✅ wired into the scaffold · ⬜ still to do (listed in the order 
 ## 0. Foundations — do first, everything builds on this
 - ⬜ **refresh the migration baseline** — model has outrun `alembic/0001` (missing `local_id`/UUIDs/timestamp type); make `alembic upgrade head` work on a dev DB
 - ✅ structured logs with env-driven `LOG_LEVEL` (logging seed is already here)
-- ⬜ **request-id middleware** → every log line carries a correlation id (cheap now, painful to retrofit)
+- ✅ **request-id middleware** → every log line carries a correlation id (cheap now, painful to retrofit)
 - ✅ `/api/v1/health` DB readiness probe (your first monitoring signal)
 - ⬜ expand readiness: migration state + last-ingest freshness (see `services/health.py`)
 - ⬜ stand up ephemeral-Postgres tests (testcontainers) and write tests *with* each feature
