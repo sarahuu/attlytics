@@ -47,6 +47,24 @@ class SecurityUtils:
         return jwt.encode(payload, get_settings().secret_key, algorithm=get_settings().algorithm)
 
     @staticmethod
+    def create_device_token(
+        installation_id: str,
+        extra_data: Optional[Dict] = None,
+        expires_minutes: int = 30,
+    ):
+        jti = str(uuid.uuid4())
+        payload = {
+            "sub": installation_id,
+            "exp": datetime.now(UTC) + timedelta(minutes=expires_minutes),
+            "type": "device",
+            "jti": jti,
+            "iat": datetime.now(UTC),
+        }
+        if extra_data:
+            payload.update(extra_data)
+        return jwt.encode(payload, get_settings().secret_key, algorithm=get_settings().algorithm)
+
+    @staticmethod
     def decode_token(token:str):
         try:
             payload = jwt.decode(

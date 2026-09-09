@@ -39,13 +39,13 @@ def setup_logging(level: str = "INFO") -> None:
 
 
 class RequestLoggingMiddleware:
-    """Pure-ASGI middleware that logs one access line per HTTP request."""
 
     def __init__(self, app):
         self.app = app
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] != "http":
+        kind = scope.get("type")
+        if kind not in ("http", "websocket"):
             await self.app(scope, receive, send)
             return
 
@@ -53,23 +53,31 @@ class RequestLoggingMiddleware:
         token = request_id_ctx.set(request_id)
         started = time.perf_counter()
         status_code = None
+        method = scope.get("method", "GET") if kind == "http" else "WS"
+        path = scope.get("path", "")
         access_log = logging.getLogger("access")
 
         async def send_with_context(message):
             nonlocal status_code
-            if message["type"] == "http.response.start":
+            message_type = message.get("type")
+
+            if message_type in ("http.response.start", "websocket.http.response.start"):
                 status_code = message.get("status")
                 headers = list(message.get("headers", ()))
                 headers.append((b"x-request-id", request_id.encode("latin-1")))
                 message = {**message, "headers": headers}
+            elif message_type == "websocket.accept":
+                status_code = 101
+            elif message_type == "websocket.close" and status_code is None:
+                # Server closed before accepting -> represent the rejection.
+                status_code = 499
+
             await send(message)
 
         try:
             await self.app(scope, receive, send_with_context)
         finally:
             duration_ms = (time.perf_counter() - started) * 1000
-            method = scope.get("method", "")
-            path = scope.get("path", "")
             access_log.info(
                 "%s %s -> %s (%d ms)",
                 method,

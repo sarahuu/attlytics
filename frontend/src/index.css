@@ -1,0 +1,136 @@
+:root {
+  color-scheme: light;
+  font-family: "Segoe UI", system-ui, Arial, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #f4f6f8;
+  color: #1b2430;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card {
+  background: #fff;
+  padding: 2rem 2.25rem;
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+  width: 100%;
+  max-width: 380px;
+}
+
+.card h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.4rem;
+}
+
+.subtitle {
+  color: #5b6b7b;
+  margin: 0 0 1.25rem;
+  font-size: 0.9rem;
+}
+
+.field {
+  margin-bottom: 0.9rem;
+}
+
+.field label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+
+.field input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.55rem 0.6rem;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  font-size: 0.95rem;
+}
+
+.field input:focus {
+  outline: none;
+  border-color: #069494;
+}
+
+button {
+  width: 100%;
+  padding: 0.6rem;
+  border: none;
+  border-radius: 6px;
+  background: #069494;
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.alert {
+  padding: 0.55rem 0.7rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  margin-bottom: 0.9rem;
+}
+
+.alert.error {
+  background: #fdecea;
+  color: #b00020;
+}
+
+.alert.success {
+  background: #e6f4ea;
+  color: #1a8f3c;
+}
+
+.muted {
+  color: #5b6b7b;
+  font-size: 0.85rem;
+}
+
+.row {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-top: 1.1rem;
+  font-size: 0.9rem;
+}
+
+.row a {
+  color: #069494;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.device-info {
+  margin: 0 0 1rem;
+}
+
+.device-info dt {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #5b6b7b;
+  margin-top: 0.65rem;
+}
+
+.device-info dd {
+  margin: 0.05rem 0 0;
+  font-size: 0.95rem;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}

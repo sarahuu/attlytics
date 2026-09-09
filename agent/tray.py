@@ -29,6 +29,8 @@ class AgentController:
         self._commands = queue.Queue()
         self._icon = None
         self._root = None
+        self._status_label = None
+        self._connecting = False
 
     # ---- Agent thread ----
 
@@ -78,6 +80,35 @@ class AgentController:
         if self._root is not None:
             self._root.destroy()
 
+    # ---- Connect account ----
+
+    def set_status(self, text, color="#666666"):
+        self._post(lambda: self._do_status(text, color))
+
+    def _do_status(self, text, color):
+        if self._status_label is not None:
+            self._status_label.config(text=text, fg=color)
+
+    def connect_account(self):
+        if self._connecting:
+            return
+        self._connecting = True
+        threading.Thread(
+            target=self._run_connect, name="connect-account", daemon=True
+        ).start()
+
+    def _run_connect(self):
+        try:
+            self.set_status("Connecting to account\u2026", "#444444")
+            from agent import account
+
+            account.connect_account()
+            self.set_status("Connected \u2713", "#1a8f3c")
+        except Exception as exc:  # noqa: BLE001 - surface to the UI
+            self.set_status(f"Connect failed: {exc}", "#b00020")
+        finally:
+            self._connecting = False
+
     # ---- Shutdown ----
 
     def shutdown(self):
@@ -104,6 +135,9 @@ def _run_window(controller):
         text="\u25cf Agent is running",
         fg="#1a8f3c",
     ).pack(padx=28)
+    status_label = tk.Label(root, text="Not connected", fg="#666666")
+    status_label.pack(padx=28)
+    controller._status_label = status_label
     tk.Label(
         root,
         text="Closing this window keeps it running in the tray.\n"
@@ -114,6 +148,11 @@ def _run_window(controller):
 
     buttons = tk.Frame(root)
     buttons.pack(pady=(12, 18))
+    tk.Button(
+        buttons,
+        text="Connect account",
+        command=controller.connect_account,
+    ).pack(side="left", padx=6)
     tk.Button(
         buttons,
         text="Hide to tray",
@@ -152,6 +191,9 @@ def _run_tray(controller):
     def show(icon, item):
         controller.show_window()
 
+    def connect_account(icon, item):
+        controller.connect_account()
+
     def exit_app(icon, item):
         controller.shutdown()
 
@@ -166,6 +208,7 @@ def _run_tray(controller):
             stop,
             enabled=lambda item: controller.is_running(),
         ),
+        pystray.MenuItem("Connect account", connect_account),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Show window", show, default=True),
         pystray.MenuItem("Exit", exit_app),

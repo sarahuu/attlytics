@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     algorithm: str
     access_token_expire_min: int
     refresh_token_expire_days: int
+    enroll_token_expire_min: int = 30
 
     @field_validator("cors_origins", mode="before")
     @classmethod
