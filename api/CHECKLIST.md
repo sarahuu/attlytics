@@ -3,17 +3,15 @@
 Status key: ✅ wired into the scaffold · ⬜ still to do (listed in the order you should do them)
 
 ## 0. Foundations — do first, everything builds on this
-- ⬜ **refresh the migration baseline** — model has outrun `alembic/0001` (missing `local_id`/UUIDs/timestamp type); make `alembic upgrade head` work on a dev DB
+- ✅ **refresh the migration baseline** — model has outrun `alembic/0001` (missing `local_id`/UUIDs/timestamp type); make `alembic upgrade head` work on a dev DB
 - ✅ structured logs with env-driven `LOG_LEVEL` (logging seed is already here)
 - ✅ **request-id middleware** → every log line carries a correlation id (cheap now, painful to retrofit)
 - ✅ `/api/v1/health` DB readiness probe (your first monitoring signal)
-- ⬜ expand readiness: migration state + last-ingest freshness (see `services/health.py`)
-- ⬜ stand up ephemeral-Postgres tests (testcontainers) and write tests *with* each feature
 
 ## 1. Identity & data model — user, device, sessions
-- ⬜ add `users`, `devices`, `sessions` models (with migrations)
-- ⬜ **add `device_id` FK to `heartbeats`** — without attribution there is no multi-device tracking
-- ⬜ **make `local_id` unique per device** (`UNIQUE(device_id, local_id)`) — it's globally unique today, which breaks at device #2
+- ✅ add `users`, `devices`, `sessions` models (with migrations)
+- ✅ **add `device_id` FK to `heartbeats`** — without attribution there is no multi-device tracking
+- ✅ **make `local_id` unique per device** (`UNIQUE(device_id, local_id)`) — it's globally unique today, which breaks at device #2
 - ⬜ enrollment: register device → server issues `device_id` + one-time device secret; store only a hash server-side; rotate/revoke
 - ⬜ user auth (OAuth2/JWT/API keys) with scope/permission checks, not just "is logged in"
 

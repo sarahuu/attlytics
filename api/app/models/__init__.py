@@ -1,9 +1,5 @@
-"""SQLAlchemy ORM models.
-
-Import every model here so Alembic autogenerate (alembic/env.py) can see the
-full metadata when generating migrations.
-"""
-
 from app.models.heartbeat import Heartbeat
+from app.models.tokens import RevokedToken
+from app.models.users import Device, User
 
-__all__ = ["Heartbeat"]
+__all__ = ["User", "Device", "Heartbeat", "RevokedToken"]

@@ -3,6 +3,7 @@ from typing import List, Union
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from datetime import timedelta
 
 
 class Settings(BaseSettings):
@@ -24,6 +25,11 @@ class Settings(BaseSettings):
 
     cors_origins: Union[str, List[str]]
 
+    secret_key: str
+    algorithm: str
+    access_token_expire_min: int
+    refresh_token_expire_days: int
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _parse_cors_origins(cls, value):
@@ -37,3 +43,6 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Return a cached Settings instance (env is read once per process)."""
     return Settings()
+
+ACCESS_TOKEN_EXPIRE = timedelta(minutes=get_settings().access_token_expire_min)
+REFRESH_TOKEN_EXPIRE = timedelta(days=get_settings().refresh_token_expire_days)
