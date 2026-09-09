@@ -1,7 +1,8 @@
 import json
 import logging
+import webbrowser
 from urllib import request as urlrequest
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 
 import websocket
 
@@ -59,10 +60,20 @@ def _ws_url(base: str, token: str) -> str:
     return f"{scheme}://{parsed.netloc}{_ENROLL_WS_PATH}?token={token}"
 
 
-def await_api_key(token: str, server_url: str | None = None, timeout: int = 60) -> str:
+def _display_name(user: dict) -> str:
+    if not isinstance(user, dict):
+        return ""
+    first = (user.get("first_name") or "").strip()
+    last = (user.get("last_name") or "").strip()
+    return " ".join(part for part in (first, last) if part)
+
+
+def await_api_key(
+    token: str, server_url: str | None = None, timeout: int = 60
+) -> tuple[str, str]:
     """Open the enrollment socket and block until the user API key arrives.
 
-    Returns the api key and closes the connection (as requested).
+    Returns (api_key, account_display_name) and closes the connection.
     """
     base = (server_url or config.API_BASE_URL).rstrip("/")
     if not base:
@@ -76,7 +87,7 @@ def await_api_key(token: str, server_url: str | None = None, timeout: int = 60) 
             if message.get("type") == "api_key" and message.get("api_key"):
                 api_key = message["api_key"]
                 ws.close()
-                return api_key
+                return api_key, _display_name(message.get("user") or {})
             # "hello", "ping", "pong" keep-alives are ignored for now.
     except websocket.WebSocketException as exc:
         logger.warning("Enrollment websocket closed unexpectedly: %s", exc)
@@ -86,16 +97,17 @@ def await_api_key(token: str, server_url: str | None = None, timeout: int = 60) 
 # ---- Secure local storage (DPAPI / Windows) -------------------------------
 
 
-def save_api_key(api_key: str) -> None:
-    """Encrypt the api key with DPAPI (bound to this Windows user) and store it."""
+def save_api_key(api_key: str, name: str = "") -> None:
+    """Encrypt {api_key, account name} with DPAPI and store it in secrets.bin."""
     try:
         import win32crypt
     except ImportError as exc:  # pragma: no cover - non-Windows
         raise RuntimeError("DPAPI storage requires pywin32 (Windows)") from exc
 
+    payload = json.dumps({"api_key": api_key, "name": name}, ensure_ascii=False)
     blob = win32crypt.CryptProtectData(
-        api_key.encode("utf-16-le"),
-        description="attlytics-api-key",
+        payload.encode("utf-16-le"),
+        "attlytics-account",
     )
     SECRETS_PATH.parent.mkdir(parents=True, exist_ok=True)
     tmp = SECRETS_PATH.with_suffix(".tmp")
@@ -103,27 +115,67 @@ def save_api_key(api_key: str) -> None:
     tmp.replace(SECRETS_PATH)
 
 
-def load_api_key() -> str | None:
-    """Return the stored api key, or None if there isn't one."""
+def load_account() -> dict | None:
+    """Return {"api_key", "name"} from DPAPI storage, or None.
+
+    Handles legacy files that only stored the raw key.
+    """
     if not SECRETS_PATH.exists():
         return None
     try:
         import win32crypt
     except ImportError:  # pragma: no cover - non-Windows
         return None
-    blob = SECRETS_PATH.read_bytes()
-    data, _ = win32crypt.CryptUnprotectData(blob)
-    return data.decode("utf-16-le")
+    try:
+        data, _ = win32crypt.CryptUnprotectData(SECRETS_PATH.read_bytes())
+        text = data.decode("utf-16-le").strip()
+    except Exception:  # noqa: BLE001 - corrupt file -> treat as not connected
+        return None
+    try:
+        account = json.loads(text)
+        if isinstance(account, dict) and account.get("api_key"):
+            account.setdefault("name", "")
+            return account
+    except (ValueError, TypeError):
+        pass
+    # Legacy file: the blob was just the raw api key.
+    return {"api_key": text, "name": ""}
+
+
+def load_api_key() -> str | None:
+    """Back-compat: return just the stored api key, or None."""
+    account = load_account()
+    return account["api_key"] if account else None
 
 
 # ---- End to end -----------------------------------------------------------
 
 
-def connect_account() -> str:
-    """Enroll -> open socket -> store api key -> return it (socket closed)."""
+def confirmation_url(token: str, web_base: str | None = None) -> str:
+    """Build the browser URL where the user confirms this device."""
+    base = (web_base or config.WEB_BASE_URL).rstrip("/")
+    if not base:
+        raise RuntimeError("WEB_BASE_URL is not configured")
+    return f"{base}/device/register?{urlencode({'token': token})}"
+
+
+def connect_account(on_link=None) -> dict:
+    """Enroll -> show/open confirmation link -> wait on socket -> store key.
+
+    Returns the stored account dict {"api_key", "name"}. on_link(url) is
+    called with the confirmation URL before we wait on the socket; if omitted
+    the default browser is opened automatically.
+    """
     response = enroll()
     token = response["token"]
-    api_key = await_api_key(token)
-    save_api_key(api_key)
+    url = confirmation_url(token)
+
+    if on_link is not None:
+        on_link(url)
+    else:
+        webbrowser.open(url)
+
+    api_key, name = await_api_key(token)
+    save_api_key(api_key, name)
     logger.info("Account connected; api key stored.")
-    return api_key
+    return {"api_key": api_key, "name": name}

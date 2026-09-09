@@ -1,6 +1,7 @@
 import queue
 import threading
 import tkinter as tk
+import webbrowser
 
 import pystray
 from PIL import Image, ImageDraw
@@ -30,6 +31,7 @@ class AgentController:
         self._icon = None
         self._root = None
         self._status_label = None
+        self._link_url = None
         self._connecting = False
 
     # ---- Agent thread ----
@@ -86,8 +88,27 @@ class AgentController:
         self._post(lambda: self._do_status(text, color))
 
     def _do_status(self, text, color):
+        self._link_url = None
         if self._status_label is not None:
-            self._status_label.config(text=text, fg=color)
+            self._status_label.config(
+                text=text, fg=color, cursor="", font=("Segoe UI", 9)
+            )
+
+    # ---- Clickable confirmation link ----
+
+    def show_link(self, url):
+        self._post(lambda: self._do_show_link(url))
+
+    def _do_show_link(self, url):
+        self._link_url = url
+        self._do_show()  # make sure the status window is visible
+        if self._status_label is not None:
+            self._status_label.config(
+                text="Click here to confirm this device in your browser",
+                fg="#0055cc",
+                cursor="hand2",
+                font=("Segoe UI", 9, "underline"),
+            )
 
     def connect_account(self):
         if self._connecting:
@@ -102,8 +123,18 @@ class AgentController:
             self.set_status("Connecting to account\u2026", "#444444")
             from agent import account
 
-            account.connect_account()
-            self.set_status("Connected \u2713", "#1a8f3c")
+            def on_link(url: str):
+                self.show_link(url)
+                try:
+                    webbrowser.open(url)
+                except Exception:  # noqa: BLE001 - browser open is best-effort
+                    pass
+
+            saved = account.connect_account(on_link=on_link)
+            name = (saved or {}).get("name") or ""
+            self.set_status(
+                f"Connected as {name}" if name else "Connected \u2713", "#1a8f3c"
+            )
         except Exception as exc:  # noqa: BLE001 - surface to the UI
             self.set_status(f"Connect failed: {exc}", "#b00020")
         finally:
@@ -135,9 +166,33 @@ def _run_window(controller):
         text="\u25cf Agent is running",
         fg="#1a8f3c",
     ).pack(padx=28)
-    status_label = tk.Label(root, text="Not connected", fg="#666666")
+    status_label = tk.Label(
+        root, text="Not connected", fg="#666666", justify="left", wraplength=360
+    )
     status_label.pack(padx=28)
     controller._status_label = status_label
+
+    def _open_link(_event=None):
+        url = getattr(controller, "_link_url", None)
+        if url:
+            webbrowser.open(url)
+
+    status_label.bind("<Button-1>", _open_link)
+
+    # Reflect an already-connected account (agent started with a stored key).
+    try:
+        from agent import account
+
+        acct = account.load_account()
+    except Exception:  # noqa: BLE001 - storage is best-effort
+        acct = None
+    if acct:
+        name = (acct.get("name") or "").strip()
+        status_label.config(
+            text=f"Connected as {name}" if name else "Connected",
+            fg="#1a8f3c",
+            font=("Segoe UI", 9),
+        )
     tk.Label(
         root,
         text="Closing this window keeps it running in the tray.\n"

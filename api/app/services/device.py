@@ -53,26 +53,43 @@ async def confirm_enrollment(
             "Agent is not connected. Run \u201cConnect account\u201d in the agent first."
         )
 
-    if await devices_repo.get_by_installation_id(db, installation_id) is not None:
-        raise ConflictError("This installation is already registered")
+    meta = {
+        "device_name": payload.get("device_name") or "Device",
+        "device_type": payload.get("device_type") or "unknown",
+        "hostname": payload.get("hostname"),
+        "platform": payload.get("platform"),
+        "os_version": payload.get("os_version"),
+        "machine_key": payload.get("machine_key"),
+        "agent_version": payload.get("agent_version"),
+    }
 
+    # Idempotent by installation_id: re-confirming the same agent must not
+    # create a second Device row.
+    device = await devices_repo.get_by_installation_id(db, installation_id)
+    if device is None:
+        device = await devices_repo.create(
+            db, user_id=user.id, installation_id=installation_id, **meta
+        )
+    elif device.user_id != user.id:
+        raise ConflictError(
+            "This device is already registered to another account. "
+            "Remove it from that account or re-install the agent."
+        )
+    else:
+        device = await devices_repo.update_metadata(db, device, **meta)
+
+    # Rotate: revoke this device's previous key, then issue a fresh one that
+    # is delivered to the agent over the socket.
     api_key = secrets.token_urlsafe(32)
     api_key_hash = SecurityUtils.get_password_hash(api_key)
 
     try:
-        device = await devices_repo.create(
-            db,
-            user_id=user.id,
-            installation_id=installation_id,
-            device_name=payload.get("device_name") or "Device",
-            device_type=payload.get("device_type") or "unknown",
-            hostname=payload.get("hostname"),
-            platform=payload.get("platform"),
-            os_version=payload.get("os_version"),
-            machine_key=payload.get("machine_key"),
-            agent_version=payload.get("agent_version"),
+        await api_keys_repo.revoke_active_for_device(
+            db, user_id=user.id, device_id=device.id
         )
-        await api_keys_repo.create(db, user_id=user.id, key_hash=api_key_hash)
+        await api_keys_repo.create(
+            db, user_id=user.id, device_id=device.id, key_hash=api_key_hash
+        )
     except IntegrityError:
         await db.rollback()
         raise ConflictError("Device or API key already exists") from None

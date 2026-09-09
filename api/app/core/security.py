@@ -1,4 +1,4 @@
-from passlib.context import CryptContext
+import bcrypt
 from jose import JWTError, jwt
 from datetime import datetime, timedelta, UTC
 import uuid
@@ -6,17 +6,19 @@ from uuid import UUID
 from typing import Optional, Dict
 from app.core.config import get_settings, ACCESS_TOKEN_EXPIRE, REFRESH_TOKEN_EXPIRE
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 class SecurityUtils:
 
     @staticmethod
-    def verify_password(plain_password:str, hashed_password:str):
-        return pwd_context.verify(plain_password, hashed_password)
+    def verify_password(plain_password: str, hashed_password: str) -> bool:
+        return bcrypt.checkpw(
+            plain_password.encode("utf-8"), hashed_password.encode("utf-8")
+        )
 
     @staticmethod
-    def get_password_hash(password:str):
-        return pwd_context.hash(password)
+    def get_password_hash(password: str) -> str:
+        return bcrypt.hashpw(
+            password.encode("utf-8"), bcrypt.gensalt()
+        ).decode("utf-8")
 
     @staticmethod
     def create_access_token(user_id:UUID, extra_data: Optional[Dict]=None):

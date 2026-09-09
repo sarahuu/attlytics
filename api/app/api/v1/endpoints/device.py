@@ -79,7 +79,14 @@ async def confirm_enrollment(
 
     sent = await enrollment_sockets.send_json(
         str(device.installation_id),
-        {"type": "api_key", "api_key": api_key},
+        {
+            "type": "api_key",
+            "api_key": api_key,
+            "user": {
+                "first_name": current_user.first_name,
+                "last_name": current_user.last_name,
+            },
+        },
     )
     if not sent:
         raise ConflictError("Device linked, but the agent socket closed before delivery.")

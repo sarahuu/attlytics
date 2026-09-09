@@ -1,5 +1,6 @@
 """Data access for devices."""
 import uuid
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,6 +41,33 @@ async def create(
         agent_version=agent_version,
     )
     db.add(device)
+    await db.commit()
+    await db.refresh(device)
+    return device
+
+
+async def update_metadata(
+    db: AsyncSession,
+    device: Device,
+    *,
+    device_name: str,
+    device_type: str,
+    hostname: str | None = None,
+    platform: str | None = None,
+    os_version: str | None = None,
+    machine_key: str | None = None,
+    agent_version: str | None = None,
+) -> Device:
+    """Refresh a re-connecting device in place instead of creating a new row."""
+    device.device_name = device_name
+    device.device_type = device_type
+    device.hostname = hostname
+    device.platform = platform
+    device.os_version = os_version
+    device.machine_key = machine_key
+    device.agent_version = agent_version
+    device.is_active = True
+    device.last_seen_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(device)
     return device

@@ -30,3 +30,7 @@ IDLE_THRESHOLD_SECONDS = float(
 
 # --- Remote Attlytics API (empty = syncing disabled until configured) ------
 API_BASE_URL = os.environ.get("API_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+
+# --- Web app base URL, used to build the "confirm this device" link ---------
+DEFAULT_WEB_BASE_URL = "http://localhost:5173"
+WEB_BASE_URL = os.environ.get("WEB_BASE_URL", DEFAULT_WEB_BASE_URL).rstrip("/")

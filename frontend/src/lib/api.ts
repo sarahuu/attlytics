@@ -13,7 +13,7 @@ export const endpoints = {
   register: `${API_URL}/auth/register`,
   login: `${API_URL}/auth/login`,
   refresh: `${API_URL}/auth/refresh`,
-  confirmEnrollment: `${API_URL}/enroll/confirm`,
+  confirmEnrollment: `${API_URL}/devices/enroll/confirm`,
 } as const;
 
 const api = axios.create({ baseURL: API_URL });
