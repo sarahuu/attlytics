@@ -31,3 +31,9 @@ HEARTBEAT_INTERVAL_SECONDS = float(
 IDLE_THRESHOLD_SECONDS = float(
     os.environ.get("IDLE_THRESHOLD_SECONDS", 60.0)
 )
+
+DEFAULT_IDENTITY_PATH = _DATA_ROOT / "identity.json"
+
+IDENTITY_PATH = Path(os.environ.get("IDENTITY_PATH", str(DEFAULT_IDENTITY_PATH)))
+
+API_BASE_URL = os.environ.get("API_BASE_URL", "").rstrip("/")

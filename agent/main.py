@@ -7,9 +7,11 @@ from agent.collectors.windows import WindowsCollector
 from agent.config import (
     DB_PATH,
     HEARTBEAT_INTERVAL_SECONDS,
+    IDENTITY_PATH,
     IDLE_THRESHOLD_SECONDS,
     POLL_INTERVAL_SECONDS,
 )
+from agent.identity import load_or_create_identity
 from agent.instance_lock import InstanceLock
 from agent.storage.database import ActivityDatabase
 from agent.tracking.activity_tracker import ActivityTracker
@@ -41,6 +43,8 @@ def run(stop_event=None):
     console). Returns after a clean shutdown."""
     if stop_event is None:
         stop_event = threading.Event()
+
+    load_or_create_identity(IDENTITY_PATH)
 
     collector = create_collector()
 
