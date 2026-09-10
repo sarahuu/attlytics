@@ -6,6 +6,7 @@ class InstanceLock:
     """A thin, non-blocking wrapper around ``filelock.FileLock``."""
 
     def __init__(self, path):
+        self.path = path
         self._lock = FileLock(path)
 
     def acquire(self):
