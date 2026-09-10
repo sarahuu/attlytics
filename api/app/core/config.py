@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int
     enroll_token_expire_min: int = 30
 
+    refresh_cookie_name: str = "attlytics_refresh"
+    cookie_secure: bool | None = None
+    refresh_cookie_samesite: str = "lax"
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _parse_cors_origins(cls, value):
@@ -38,6 +42,17 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [origin.strip() for origin in value.split(",") if origin.strip()]
         return value
+
+    @property
+    def refresh_cookie_secure(self) -> bool:
+        """Secure unless explicitly set; automatically on in production."""
+        if self.cookie_secure is not None:
+            return self.cookie_secure
+        return self.environment == "production"
+
+    @property
+    def refresh_cookie_path(self) -> str:
+        return f"{self.api_v1_prefix.rstrip('/')}/auth"
 
 
 @lru_cache

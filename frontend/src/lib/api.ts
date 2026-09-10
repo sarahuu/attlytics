@@ -13,10 +13,12 @@ export const endpoints = {
   register: `${API_URL}/auth/register`,
   login: `${API_URL}/auth/login`,
   refresh: `${API_URL}/auth/refresh`,
-  confirmEnrollment: `${API_URL}/devices/enroll/confirm`,
+  logout: `${API_URL}/auth/logout`,
+  confirmEnrollment: `${API_URL}/devices/confirm`,
 } as const;
 
-const api = axios.create({ baseURL: API_URL });
+// withCredentials lets the browser send/receive the HttpOnly refresh cookie.
+const api = axios.create({ baseURL: API_URL, withCredentials: true });
 
 // Attach the access token to every request.
 api.interceptors.request.use((config) => {
@@ -31,12 +33,10 @@ api.interceptors.request.use((config) => {
 let refreshPromise: Promise<string> | null = null;
 
 async function refreshAccessToken(): Promise<string> {
-  const { refreshToken } = useAuthStore.getState();
-  if (!refreshToken) {
-    throw new Error("No refresh token");
-  }
-  const { data } = await axios.post<Token>(endpoints.refresh, {
-    refresh_token: refreshToken,
+  // The refresh token is an HttpOnly cookie, so there is no request body —
+  // we only need the browser to include the cookie (withCredentials).
+  const { data } = await axios.post<Token>(endpoints.refresh, null, {
+    withCredentials: true,
   });
   useAuthStore.getState().setTokens(data);
   return data.access_token;
@@ -79,6 +79,8 @@ export const authApi = {
     api.post<User>(endpoints.register, body).then((r) => r.data),
   login: (body: LoginRequest): Promise<Token> =>
     api.post<Token>(endpoints.login, body).then((r) => r.data),
+  logout: (): Promise<void> =>
+    api.post(endpoints.logout).then(() => undefined),
 };
 
 export interface ConfirmEnrollmentResponse {

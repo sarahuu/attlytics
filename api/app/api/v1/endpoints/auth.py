@@ -1,19 +1,39 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_current_user, get_token_payload
+from app.core.config import get_settings
+from app.core.dependencies import get_optional_token_payload
+from app.core.exceptions import UnauthorizedError
 from app.db.session import get_db
 from app.models.users import User
-from app.schemas.auth import (
-    RefreshTokenRequest,
-    Token,
-    UserCreate,
-    UserLogin,
-    UserOut,
-)
+from app.schemas.auth import Token, UserCreate, UserLogin, UserOut
 from app.services import auth as service
 
 router = APIRouter(tags=["auth"])
+settings = get_settings()
+
+
+def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
+    """Store the refresh token in an HttpOnly cookie (never readable by JS)."""
+    response.set_cookie(
+        key=settings.refresh_cookie_name,
+        value=refresh_token,
+        max_age=settings.refresh_token_expire_days * 24 * 60 * 60,
+        path=settings.refresh_cookie_path,
+        httponly=True,
+        secure=settings.refresh_cookie_secure,
+        samesite=settings.refresh_cookie_samesite,
+    )
+
+
+def _clear_refresh_cookie(response: Response) -> None:
+    response.delete_cookie(
+        key=settings.refresh_cookie_name,
+        path=settings.refresh_cookie_path,
+        httponly=True,
+        secure=settings.refresh_cookie_secure,
+        samesite=settings.refresh_cookie_samesite,
+    )
 
 
 @router.post(
@@ -26,32 +46,52 @@ async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)) -> U
     return await service.register_user(db, payload)
 
 
-@router.post("/login", response_model=Token, summary="Exchange credentials for JWT tokens")
-async def login(payload: UserLogin, db: AsyncSession = Depends(get_db)) -> Token:
+@router.post(
+    "/login",
+    response_model=Token,
+    summary="Log in; refresh token is set as an HttpOnly cookie",
+)
+async def login(
+    payload: UserLogin,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+) -> Token:
     user = await service.authenticate(db, payload)
     access_token, refresh_token = service.issue_tokens(user)
-    return Token(access_token=access_token, refresh_token=refresh_token)
+    _set_refresh_cookie(response, refresh_token)
+    return Token(access_token=access_token)
 
 
 @router.post(
     "/refresh",
     response_model=Token,
-    summary="Refresh an expired access token",
+    summary="Rotate the refresh cookie and return a new access token",
 )
 async def refresh(
-    payload: RefreshTokenRequest, db: AsyncSession = Depends(get_db)
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
 ) -> Token:
-    access_token, refresh_token = await service.refresh_tokens(
-        db, payload.refresh_token
-    )
-    return Token(access_token=access_token, refresh_token=refresh_token)
+    refresh_token = request.cookies.get(settings.refresh_cookie_name)
+    if not refresh_token:
+        raise UnauthorizedError("No refresh token")
+
+    access_token, new_refresh_token = await service.refresh_tokens(db, refresh_token)
+    _set_refresh_cookie(response, new_refresh_token)
+    return Token(access_token=access_token)
 
 
-@router.post("/logout", summary="Revoke the current access token")
+@router.post("/logout", summary="Revoke the refresh cookie and access token")
 async def logout(
-    current_user: User = Depends(get_current_user),
-    payload: dict = Depends(get_token_payload),
+    request: Request,
+    response: Response,
+    access_payload: dict | None = Depends(get_optional_token_payload),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
-    await service.logout(db, payload)
+    await service.logout(
+        db,
+        refresh_token=request.cookies.get(settings.refresh_cookie_name),
+        access_payload=access_payload,
+    )
+    _clear_refresh_cookie(response)
     return {"detail": "Logged out"}

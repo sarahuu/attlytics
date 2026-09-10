@@ -121,15 +121,18 @@ def load_account() -> dict | None:
     Handles legacy files that only stored the raw key.
     """
     if not SECRETS_PATH.exists():
+        logger.info("No stored account at %s", SECRETS_PATH)
         return None
     try:
         import win32crypt
     except ImportError:  # pragma: no cover - non-Windows
+        logger.warning("win32crypt unavailable; cannot read the stored account")
         return None
     try:
-        data, _ = win32crypt.CryptUnprotectData(SECRETS_PATH.read_bytes())
-        text = data.decode("utf-16-le").strip()
+        _, raw = win32crypt.CryptUnprotectData(SECRETS_PATH.read_bytes())
+        text = raw.decode("utf-16-le").strip()
     except Exception:  # noqa: BLE001 - corrupt file -> treat as not connected
+        logger.exception("Could not decrypt %s", SECRETS_PATH)
         return None
     try:
         account = json.loads(text)

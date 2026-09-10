@@ -42,6 +42,31 @@ async def get_token_payload(
     return payload
 
 
+async def get_optional_token_payload(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    db: AsyncSession = Depends(get_db),
+) -> dict | None:
+    """Like ``get_token_payload`` but returns None instead of raising.
+
+    Used by logout, which must still clear the refresh cookie even when the
+    access token is missing or already expired.
+    """
+    if credentials is None:
+        return None
+
+    try:
+        payload = SecurityUtils.verify_token(
+            credentials.credentials, expected_type="access"
+        )
+    except ValueError:
+        return None
+
+    if await token_repo.is_revoked(db, payload["jti"]):
+        return None
+
+    return payload
+
+
 async def get_current_user(
     payload: dict = Depends(get_token_payload),
     db: AsyncSession = Depends(get_db),

@@ -1,3 +1,4 @@
+import logging
 import queue
 import threading
 import tkinter as tk
@@ -8,6 +9,8 @@ from PIL import Image, ImageDraw
 
 from agent.main import run as run_agent
 
+logger = logging.getLogger(__name__)
+
 
 def _create_image():
     image = Image.new("RGB", (64, 64), "#069494")
@@ -17,12 +20,6 @@ def _create_image():
 
 
 class AgentController:
-    """Coordinates the status window, tray icon, and the agent thread.
-
-    The agent loop and the tray run on background threads; the status window
-    runs on the Tk main thread. Window operations from other threads are
-    marshalled through a command queue that the window polls.
-    """
 
     def __init__(self):
         self._stop_event = threading.Event()
@@ -184,7 +181,8 @@ def _run_window(controller):
         from agent import account
 
         acct = account.load_account()
-    except Exception:  # noqa: BLE001 - storage is best-effort
+    except Exception:  # noqa: BLE001 - never let this stop the UI
+        logger.exception("Could not read the stored account")
         acct = None
     if acct:
         name = (acct.get("name") or "").strip()

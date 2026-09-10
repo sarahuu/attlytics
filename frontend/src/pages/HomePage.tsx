@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 
+import { authApi } from "../lib/api";
 import { useAuthStore } from "../store/auth";
 
 export function HomePage() {
@@ -7,7 +8,13 @@ export function HomePage() {
   const clear = useAuthStore((state) => state.clear);
   const navigate = useNavigate();
 
-  function logout() {
+  async function logout() {
+    try {
+      // Clears the HttpOnly refresh cookie server-side.
+      await authApi.logout();
+    } catch {
+      // Ignore network errors; still drop local state below.
+    }
     clear();
     navigate("/login", { replace: true });
   }

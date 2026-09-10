@@ -1,16 +1,8 @@
 
 import os
-import sys
 from pathlib import Path
 
-_FROZEN = bool(getattr(sys, "frozen", False))
-
-if _FROZEN:
-    _PACKAGE_DIR = Path(sys.executable).resolve().parent
-else:
-    _PACKAGE_DIR = Path(__file__).resolve().parent
-
-_DATA_ROOT = (Path.home() / ".attlytics") if _FROZEN else _PACKAGE_DIR
+_DATA_ROOT = Path.home() / ".attlytics"
 
 # --- Paths -----------------------------------------------------------------
 DEFAULT_DB_PATH = _DATA_ROOT / "data" / "activity_events.db"
@@ -18,6 +10,9 @@ DB_PATH = Path(os.environ.get("DB_PATH", str(DEFAULT_DB_PATH)))
 
 DEFAULT_IDENTITY_PATH = _DATA_ROOT / "identity.json"
 IDENTITY_PATH = Path(os.environ.get("IDENTITY_PATH", str(DEFAULT_IDENTITY_PATH)))
+
+# Log file: the packaged exe is windowed, so this is where failures land.
+LOG_PATH = _DATA_ROOT / "agent.log"
 
 # --- Tracking tuning (non-critical) ---------------------------------------
 POLL_INTERVAL_SECONDS = float(os.environ.get("POLL_INTERVAL_SECONDS", 1.0))

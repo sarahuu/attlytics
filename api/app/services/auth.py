@@ -16,6 +16,13 @@ def _expires_at(payload: dict) -> datetime:
     return datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
 
 
+def _subject_id(payload: dict) -> UUID | None:
+    try:
+        return UUID(payload["sub"]) if payload.get("sub") else None
+    except (ValueError, KeyError):
+        return None
+
+
 async def register_user(db: AsyncSession, payload: UserCreate) -> User:
     email = payload.email.lower()
 
@@ -77,15 +84,32 @@ async def refresh_tokens(db: AsyncSession, refresh_token: str) -> tuple[str, str
     return new_access, new_refresh
 
 
-async def logout(db: AsyncSession, payload: dict) -> None:
-    """Revoke the presented token so it can't be reused."""
+async def logout(
+    db: AsyncSession,
+    *,
+    refresh_token: str | None = None,
+    access_payload: dict | None = None,
+) -> None:
+    """Revoke the access token (if present) and the refresh token cookie."""
+    if access_payload and access_payload.get("jti"):
+        await token_repo.revoke(
+            db,
+            jti=access_payload["jti"],
+            user_id=_subject_id(access_payload),
+            expires_at=_expires_at(access_payload),
+        )
+
+    if not refresh_token:
+        return
+
     try:
-        user_id = UUID(payload["sub"]) if payload.get("sub") else None
-    except ValueError:
-        user_id = None
+        payload = SecurityUtils.verify_token(refresh_token, expected_type="refresh")
+    except (ValueError, KeyError):
+        return 
+
     await token_repo.revoke(
         db,
         jti=payload["jti"],
-        user_id=user_id,
+        user_id=_subject_id(payload),
         expires_at=_expires_at(payload),
     )

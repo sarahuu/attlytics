@@ -66,7 +66,7 @@ async def enrollment_socket(websocket: WebSocket):
 
 
 @router.post(
-    "/enroll/confirm",
+    "/confirm",
     response_model=DeviceConfirmResponse,
     summary="Confirm enrollment: link device + deliver API key to the agent",
 )
