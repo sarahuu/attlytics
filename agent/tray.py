@@ -29,6 +29,9 @@ class AgentController:
         self._root = None
         self._status_label = None
         self._link_url = None
+        self._sync_worker = None
+        self._sync_label = None
+        self._sync_button = None
         self._connecting = False
 
     # ---- Agent thread ----
@@ -39,7 +42,7 @@ class AgentController:
         self._stop_event.clear()
         self._agent_thread = threading.Thread(
             target=run_agent,
-            args=(self._stop_event,),
+            args=(self._stop_event, self._on_agent_ready),
             name="agent",
             daemon=True,
         )
@@ -51,6 +54,8 @@ class AgentController:
         self._stop_event.set()
         self._agent_thread.join(timeout=5)
         self._agent_thread = None
+        self._sync_worker = None
+        self._post(self._do_sync_ui)
 
     def is_running(self):
         return self._agent_thread is not None and self._agent_thread.is_alive()
@@ -105,6 +110,41 @@ class AgentController:
                 fg="#0055cc",
                 cursor="hand2",
                 font=("Segoe UI", 9, "underline"),
+            )
+
+    # ---- Synchronization control ----
+
+    def _on_agent_ready(self, worker):
+        """Called from the agent thread once the sync worker exists."""
+        self._sync_worker = worker
+        self._post(self._do_sync_ui)
+
+    def toggle_sync(self):
+        """Pause/resume uploads. Tracking keeps running either way."""
+        if self._sync_worker is None:
+            return
+        self._sync_worker.set_enabled(not self._sync_worker.is_enabled())
+        self._post(self._do_sync_ui)
+
+    def sync_enabled(self):
+        return self._sync_worker is not None and self._sync_worker.is_enabled()
+
+    def _do_sync_ui(self):
+        enabled = (
+            self._sync_worker.is_enabled() if self._sync_worker is not None else None
+        )
+        if self._sync_label is not None:
+            if enabled is None:
+                self._sync_label.config(text="Sync: starting\u2026", fg="#666666")
+            else:
+                self._sync_label.config(
+                    text="Sync: on" if enabled else "Sync: paused",
+                    fg="#1a8f3c" if enabled else "#b00020",
+                )
+        if self._sync_button is not None:
+            self._sync_button.config(
+                text="Stop sync" if enabled else "Start sync",
+                state="normal" if enabled is not None else "disabled",
             )
 
     def connect_account(self):
@@ -191,6 +231,11 @@ def _run_window(controller):
             fg="#1a8f3c",
             font=("Segoe UI", 9),
         )
+
+    sync_label = tk.Label(root, text="Sync: starting\u2026", fg="#666666")
+    sync_label.pack(padx=28, pady=(4, 0))
+    controller._sync_label = sync_label
+
     tk.Label(
         root,
         text="Closing this window keeps it running in the tray.\n"
@@ -206,6 +251,14 @@ def _run_window(controller):
         text="Connect account",
         command=controller.connect_account,
     ).pack(side="left", padx=6)
+    sync_button = tk.Button(
+        buttons,
+        text="Start sync",
+        command=controller.toggle_sync,
+        state="disabled",
+    )
+    sync_button.pack(side="left", padx=6)
+    controller._sync_button = sync_button
     tk.Button(
         buttons,
         text="Hide to tray",
@@ -247,8 +300,16 @@ def _run_tray(controller):
     def connect_account(icon, item):
         controller.connect_account()
 
+    def toggle_sync(icon, item):
+        controller.toggle_sync()
+
     def exit_app(icon, item):
         controller.shutdown()
+
+    sync_item = pystray.MenuItem(
+        lambda item: "Stop sync" if controller.sync_enabled() else "Start sync",
+        toggle_sync,
+    )
 
     menu = pystray.Menu(
         pystray.MenuItem(
@@ -262,6 +323,7 @@ def _run_tray(controller):
             enabled=lambda item: controller.is_running(),
         ),
         pystray.MenuItem("Connect account", connect_account),
+        sync_item,
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Show window", show, default=True),
         pystray.MenuItem("Exit", exit_app),

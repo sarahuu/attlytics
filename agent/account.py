@@ -54,10 +54,10 @@ def enroll(server_url: str | None = None) -> dict:
 # ---- Websocket ------------------------------------------------------------
 
 
-def _ws_url(base: str, token: str) -> str:
+def _ws_url(base: str) -> str:
     parsed = urlparse(base)
     scheme = "wss" if parsed.scheme == "https" else "ws"
-    return f"{scheme}://{parsed.netloc}{_ENROLL_WS_PATH}?token={token}"
+    return f"{scheme}://{parsed.netloc}{_ENROLL_WS_PATH}"
 
 
 def _display_name(user: dict) -> str:
@@ -79,7 +79,7 @@ def await_api_key(
     if not base:
         raise RuntimeError("API_BASE_URL is not configured")
 
-    ws = websocket.create_connection(_ws_url(base, token), timeout=timeout)
+    ws = websocket.create_connection(_ws_url(base), timeout=timeout,header=[f"Authorization: Bearer {token}"])
     try:
         while True:
             raw = ws.recv()

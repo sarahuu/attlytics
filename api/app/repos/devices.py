@@ -16,6 +16,10 @@ async def get_by_installation_id(
     )
 
 
+async def get_by_id(db: AsyncSession, device_id: uuid.UUID) -> Device | None:
+    return await db.get(Device, device_id)
+
+
 async def create(
     db: AsyncSession,
     *,

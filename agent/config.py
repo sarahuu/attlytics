@@ -24,8 +24,18 @@ IDLE_THRESHOLD_SECONDS = float(
 )
 
 # --- Remote Attlytics API (empty = syncing disabled until configured) ------
-API_BASE_URL = os.environ.get("API_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+API_BASE_URL = "http://127.0.0.1:8000".rstrip("/")
 
 # --- Web app base URL, used to build the "confirm this device" link ---------
 DEFAULT_WEB_BASE_URL = "http://localhost:5173"
-WEB_BASE_URL = os.environ.get("WEB_BASE_URL", DEFAULT_WEB_BASE_URL).rstrip("/")
+WEB_BASE_URL = DEFAULT_WEB_BASE_URL.rstrip("/")
+
+# --- Synchronization -------------------------------------------------------
+SYNC_ENABLED_DEFAULT = True
+SYNC_BATCH_SIZE = int(os.environ.get("SYNC_BATCH_SIZE", 500))
+# How long to wait before looking for new pending events when there are none.
+SYNC_POLL_INTERVAL_SECONDS = float(
+    os.environ.get("SYNC_POLL_INTERVAL_SECONDS", 60.0)
+)
+# Backoff between failed attempts: 1, 2, 4 minutes then a 5-minute ceiling.
+SYNC_RETRY_DELAYS_SECONDS = (60.0, 120.0, 240.0, 300.0)

@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import or_, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.users import UserApiKey
@@ -31,3 +31,17 @@ async def revoke_active_for_device(
         .values(revoked_at=datetime.now(UTC))
     )
     await db.commit()
+
+
+async def get_active_by_key_hash(
+    db: AsyncSession, key_hash: str
+) -> UserApiKey | None:
+    """Return a non-revoked, non-expired key matching the given hash."""
+    now = datetime.now(UTC)
+    return await db.scalar(
+        select(UserApiKey).where(
+            UserApiKey.key_hash == key_hash,
+            UserApiKey.revoked_at.is_(None),
+            or_(UserApiKey.expires_at.is_(None), UserApiKey.expires_at > now),
+        )
+    )

@@ -77,3 +77,76 @@ def test_events_persist_after_close_and_reopen(tmp_path):
     assert reopened.count_events() == 1
     assert reopened.get_events()[0]["application"] == "code.exe"
     reopened.close()
+
+
+def test_pending_events_are_oldest_first(tmp_path):
+    db = ActivityDatabase(tmp_path / "test.db")
+    db.initialize()
+    db.insert_event(_event(id="newer", timestamp="2026-08-26T10:00:09+00:00"))
+    db.insert_event(_event(id="older", timestamp="2026-08-26T10:00:01+00:00"))
+
+    assert [event["id"] for event in db.get_pending_events()] == ["older", "newer"]
+    db.close()
+
+
+def test_mark_synced_and_record_failure(tmp_path):
+    db = ActivityDatabase(tmp_path / "test.db")
+    db.initialize()
+    db.insert_event(_event(id="e1"))
+    db.insert_event(_event(id="e2"))
+
+    db.record_sync_failure(["e1"], error="HTTP 503", next_retry_at="later")
+    failed = [event for event in db.get_events() if event["id"] == "e1"][0]
+    assert failed["sync_status"] == "PENDING"
+    assert failed["attempt_count"] == 1
+    assert failed["last_sync_error"] == "HTTP 503"
+    assert failed["next_retry_at"] == "later"
+
+    db.mark_synced(["e2"])
+    synced = [event for event in db.get_events() if event["id"] == "e2"][0]
+    assert synced["sync_status"] == "SYNCED"
+    assert db.count_pending_events() == 1
+    db.close()
+
+
+def test_settings_round_trip(tmp_path):
+    db = ActivityDatabase(tmp_path / "test.db")
+    db.initialize()
+
+    assert db.get_setting("sync_enabled", "1") == "1"
+    db.set_setting("sync_enabled", "0")
+    assert db.get_setting("sync_enabled") == "0"
+    db.set_setting("sync_enabled", "1")
+    assert db.get_setting("sync_enabled") == "1"
+    db.close()
+
+
+def test_existing_database_gains_sync_columns(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "old.db"
+    conn = sqlite3.connect(path)
+    conn.execute(
+        "CREATE TABLE activity_events ("
+        "id TEXT PRIMARY KEY, state_id TEXT NOT NULL, source TEXT NOT NULL, "
+        "application TEXT NOT NULL, event_type TEXT NOT NULL, "
+        "timestamp TEXT NOT NULL, duration_seconds REAL, metadata TEXT, "
+        "sync_status TEXT NOT NULL DEFAULT 'PENDING')"
+    )
+    conn.execute(
+        "INSERT INTO activity_events "
+        "(id, state_id, source, application, event_type, timestamp) "
+        "VALUES ('e1', 's1', 'os', 'code.exe', 'STATE_START', "
+        "'2026-08-26T10:00:00+00:00')"
+    )
+    conn.commit()
+    conn.close()
+
+    db = ActivityDatabase(path)
+    db.initialize()  # should ALTER TABLE in the missing columns
+
+    stored = db.get_events()[0]
+    assert stored["attempt_count"] == 0
+    assert stored["next_retry_at"] is None
+    assert db.count_pending_events() == 1
+    db.close()

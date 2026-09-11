@@ -33,7 +33,11 @@ def enroll_device(payload: DeviceEnroll) -> DeviceEnrollResponse:
 @router.websocket("/enroll/ws")
 async def enrollment_socket(websocket: WebSocket):
     """Agent keeps this open after enrolling; API accepts only valid tokens."""
-    token = websocket.query_params.get("token")
+    scheme, _, value = websocket.headers.get("authorization", "").partition(" ")
+    if scheme.lower() != "bearer" or not value.strip():
+        await websocket.close(code=4401, reason="Missing enrollment token")
+        return
+    token = value.strip()
     if not token:
         await websocket.close(code=4401, reason="Missing enrollment token")
         return

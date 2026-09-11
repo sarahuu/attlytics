@@ -1,4 +1,5 @@
 import bcrypt
+import hashlib
 from jose import JWTError, jwt
 from datetime import datetime, timedelta, UTC
 import uuid
@@ -19,6 +20,10 @@ class SecurityUtils:
         return bcrypt.hashpw(
             password.encode("utf-8"), bcrypt.gensalt()
         ).decode("utf-8")
+
+    @staticmethod
+    def hash_api_key(api_key: str) -> str:
+        return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
 
     @staticmethod
     def create_access_token(user_id:UUID, extra_data: Optional[Dict]=None):

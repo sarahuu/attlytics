@@ -6,7 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import SecurityUtils
 from app.db.session import get_db
-from app.models.users import User
+from app.models.users import Device, User
+from app.repos import api_keys as api_key_repo
+from app.repos import devices as device_repo
 from app.repos import tokens as token_repo
 from app.repos import users as user_repo
 
@@ -81,3 +83,22 @@ async def get_current_user(
     if user is None:
         raise HTTPException(detail="User no longer exists", **_UNAUTHORIZED)
     return user
+
+
+async def get_current_device(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    db: AsyncSession = Depends(get_db),
+) -> Device:
+    if credentials is None:
+        raise HTTPException(detail="Not authenticated", **_UNAUTHORIZED)
+
+    key_hash = SecurityUtils.hash_api_key(credentials.credentials)
+    api_key = await api_key_repo.get_active_by_key_hash(db, key_hash)
+    if api_key is None or api_key.device_id is None:
+        raise HTTPException(detail="Invalid or revoked API key", **_UNAUTHORIZED)
+
+    device = await device_repo.get_by_id(db, api_key.device_id)
+    if device is None or not device.is_active:
+        raise HTTPException(detail="Device is not active", **_UNAUTHORIZED)
+
+    return device

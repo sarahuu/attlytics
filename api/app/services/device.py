@@ -81,7 +81,7 @@ async def confirm_enrollment(
     # Rotate: revoke this device's previous key, then issue a fresh one that
     # is delivered to the agent over the socket.
     api_key = secrets.token_urlsafe(32)
-    api_key_hash = SecurityUtils.get_password_hash(api_key)
+    api_key_hash = SecurityUtils.hash_api_key(api_key)
 
     try:
         await api_keys_repo.revoke_active_for_device(
