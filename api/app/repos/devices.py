@@ -1,4 +1,3 @@
-"""Data access for devices."""
 import uuid
 from datetime import UTC, datetime
 
