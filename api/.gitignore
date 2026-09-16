@@ -13,3 +13,6 @@ __pycache__/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Celery beat writes its schedule to the working directory
+celerybeat-schedule*

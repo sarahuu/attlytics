@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 # Local setting key holding the user's sync on/off choice.
 SYNC_ENABLED_SETTING = "sync_enabled"
 
-_ENDPOINT_PATH = "/api/v1/heartbeats"
+_ENDPOINT_PATH = f"{config.API_V1_PREFIX}/heartbeats"
 
 
 def retry_delay_seconds(consecutive_failures):

@@ -69,7 +69,7 @@ services:
     env_file:
       - ./api/.env
       - ./.env
-    command: ["celery", "-A", "app.workers.celery_app:celery_app", "beat", "-l", "info"]
+    command: ["celery", "-A", "app.workers.celery_app:celery_app", "beat", "-l", "info", "-s", "/home/app/celerybeat-schedule"]
     depends_on:
       redis:
         condition: service_healthy

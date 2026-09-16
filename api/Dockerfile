@@ -6,7 +6,8 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /srv/app
 
-RUN useradd --create-home --shell /usr/sbin/nologin app
+RUN useradd --create-home --shell /usr/sbin/nologin app \
+    && chown app:app /srv/app
 
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
@@ -17,4 +18,4 @@ USER app
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
