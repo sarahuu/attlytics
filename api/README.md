@@ -72,17 +72,17 @@ api/
 one image; only the command differs. Postgres and Redis come from the compose
 file, so nothing needs to be installed locally.
 
-1. Create the app env file (secrets and app settings):
+1. Create the API env file:
 
    ```sh
-   cp .env.example .env
+   cp api/.env.example api/.env
    ```
 
-   `docker-compose.yml` sets no environment variables of its own. Everything it
-   injects arrives through `env_file`: `api/.env` for app config and secrets,
-   and the checked-in `.env` for container-only values — Postgres
-   credentials plus the `db` and `redis` hostnames, which resolve only inside
-   the compose network.
+   `docker-compose.yml` sets no environment variables of its own — everything
+   arrives through `env_file`. Two files feed it: the root `.env` holds
+   container-only values (Postgres credentials and the `db`/`redis` hostnames,
+   which resolve only inside the compose network), and `api/.env` holds app
+   config and secrets. Their keys are disjoint, so both are required.
 
 2. Build and start everything:
 

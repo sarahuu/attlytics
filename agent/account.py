@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 # Stored next to identity.json, e.g. ~/.attlytics/secrets.bin
 SECRETS_PATH = config.IDENTITY_PATH.parent / "secrets.bin"
 
-_ENROLL_PATH = "/v1/devices/enroll"
-_ENROLL_WS_PATH = "/v1/devices/enroll/ws"
+_ENROLL_PATH = "/api/v1/devices/enroll"
+_ENROLL_WS_PATH = "/api/v1/devices/enroll/ws"
 
 
 # ---- HTTP: enroll ---------------------------------------------------------
