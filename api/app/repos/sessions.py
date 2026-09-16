@@ -1,7 +1,9 @@
 from datetime import datetime, timezone
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select, tuple_, update
+from sqlalchemy import Float, case, cast, func, literal_column, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.heartbeat import Heartbeat, Session
@@ -32,39 +34,52 @@ class ActivityRepository:
 
         return list(result.scalars().all())
 
-    async def get_existing_sessions(
+    async def upsert_sessions(
         self,
-        keys: list[tuple[UUID, UUID, UUID]],  # (user_id, device_id, state_id)
-    ) -> dict[tuple[UUID, UUID, UUID], Session]:
+        rows: list[dict[str, Any]],
+    ) -> tuple[int, int]:
 
-        if not keys:
-            return {}
+        if not rows:
+            return 0, 0
 
-        result = await self.db.execute(
-            select(Session).where(
-                tuple_(
-                    Session.user_id,
-                    Session.device_id,
-                    Session.state_id,
-                ).in_(keys)
-            )
+        stmt = pg_insert(Session).values(rows)
+
+        start_time = func.least(
+            Session.start_time, stmt.excluded.start_time
+        )
+        end_time = func.greatest(
+            Session.end_time, stmt.excluded.end_time
         )
 
-        return {
-            (s.user_id, s.device_id, s.state_id): s
-            for s in result.scalars().all()
-        }
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["user_id", "device_id", "state_id"],
+            set_={
+                "start_time": start_time,
+                "end_time": end_time,
+                "duration_seconds": case(
+                    (
+                        end_time.is_not(None),
+                        cast(
+                            func.extract(
+                                "epoch", end_time - start_time
+                            ),
+                            Float,
+                        ),
+                    ),
+                    else_=Session.duration_seconds,
+                ),
+                "updated_at": func.now(),
+            },
+        ).returning(
+            (literal_column("xmax") == 0).label("inserted")
+        )
 
-    async def create_session(
-        self,
-        session: Session,
-    ) -> Session:
+        result = await self.db.execute(stmt)
+        flags = list(result.scalars().all())
 
-        self.db.add(session)
+        created = sum(1 for inserted in flags if inserted)
 
-        await self.db.flush()
-
-        return session
+        return created, len(flags) - created
 
 
     async def mark_events_sessionized(

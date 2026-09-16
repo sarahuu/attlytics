@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     api_v1_prefix: str
 
     database_url: str
+    redis_url: str
+    celery_broker_url: str
+    celery_result_backend: str
+    sessionize_interval_seconds: int = 30
 
     cors_origins: Union[str, List[str]]
 

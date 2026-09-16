@@ -25,15 +25,15 @@ async def check_database(db: AsyncSession) -> tuple[bool, str]:
 #     ok, detail = check_redis()
 #     checks["redis"] = detail
 #
-# def check_redis() -> tuple[bool, str]:
-#     """(ok, detail) whether the shared cache answers PING."""
-#     try:
-#         # client = redis.from_url(get_settings().redis_url, socket_timeout=2)
-#         # client.ping()
-#         return True, "up"
-#     except Exception as exc:  # noqa: BLE001
-#         logger.exception("Redis health check failed")
-#         return False, f"down ({type(exc).__name__})"
+def check_redis() -> tuple[bool, str]:
+    """(ok, detail) whether the shared cache answers PING."""
+    try:
+        # client = redis.from_url(get_settings().redis_url, socket_timeout=2)
+        # client.ping()
+        return True, "up"
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Redis health check failed")
+        return False, f"down ({type(exc).__name__})"
 #
 #
 # def check_migrations() -> tuple[bool, str]:

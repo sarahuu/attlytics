@@ -1,6 +1,13 @@
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
+from sqlalchemy.ext.asyncio import AsyncSession
+
+
+from app.repos.sessions import ActivityRepository
+
+BATCH_LIMIT = 100
+
 
 @dataclass
 class SessionResult:
@@ -12,6 +19,14 @@ class SessionResult:
     start_time: datetime
     end_time: datetime | None
     duration_seconds: float
+
+@dataclass
+class BatchResult:
+    events: int
+    created: int
+    updated: int
+
+
 
 class Sessionizer:
 
@@ -84,3 +99,44 @@ class Sessionizer:
             end_time=end_time,
             duration_seconds=max(0, duration),
         )
+
+
+
+
+
+async def sessionize_pending(
+    db: AsyncSession,
+    limit: int = BATCH_LIMIT,
+) -> BatchResult | None:
+
+    repository = ActivityRepository(db)
+    events = await repository.get_pending_events(limit=limit)
+
+    if not events:
+        return None
+
+    sessions = Sessionizer().sessionize(events)
+    rows = [
+        {
+            "user_id": result.user_id,
+            "device_id": result.device_id,
+            "state_id": result.state_id,
+            "source": result.source,
+            "application": result.application,
+            "start_time": result.start_time,
+            "end_time": result.end_time,
+            "duration_seconds": result.duration_seconds,
+        }
+        for result in sessions
+    ]
+
+    created, updated = await repository.upsert_sessions(rows)
+
+    await repository.mark_events_sessionized([event.id for event in events])
+    await db.commit()
+
+    return BatchResult(
+        events=len(events),
+        created=created,
+        updated=updated,
+    )

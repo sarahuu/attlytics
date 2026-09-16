@@ -59,3 +59,12 @@ class Session(Base):
     window_title: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "device_id",
+            "state_id",
+            name="uq_sessions_user_device_state",
+        ),
+    )

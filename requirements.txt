@@ -1,6 +1,8 @@
+celery
 psutil==7.2.2
 pywin32==312
 filelock==3.32.4
 pystray==0.19.5
 Pillow==12.3.0
+redis
 websocket-client==1.8.0
