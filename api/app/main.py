@@ -30,8 +30,11 @@ def create_app() -> FastAPI:
         title=settings.app_name,
         version=__version__,
         lifespan=lifespan,
-        docs_url="/docs" if docs_enabled else None,
-        redoc_url="/redoc" if docs_enabled else None,
+        docs_url=f"{settings.api_root}/docs" if docs_enabled else None,
+        redoc_url=f"{settings.api_root}/redoc" if docs_enabled else None,
+        swagger_ui_oauth2_redirect_url=(
+            f"{settings.api_root}/docs/oauth2-redirect" if docs_enabled else None
+        ),
         openapi_url=f"{settings.api_v1_prefix}/openapi.json" if docs_enabled else None,
     )
     application.add_middleware(RequestLoggingMiddleware)

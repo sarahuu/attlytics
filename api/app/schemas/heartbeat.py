@@ -1,7 +1,7 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.choices import EventType, Source
 
@@ -14,12 +14,23 @@ class HeartbeatCreate(BaseModel):
     event_type: EventType = Field(
         default=EventType.HEARTBEAT, description="Event type"
     )
-    timestamp: datetime = Field(description="Device time the heartbeat was recorded")
+    timestamp: datetime = Field(description="UTC time the heartbeat was recorded")
     duration_seconds: float | None = Field(
         default=None, description="Seconds covered by this heartbeat"
     )
     process_id: int | None = Field(default=None)
     window_title: str | None = Field(default=None)
+
+    @field_validator("timestamp", mode="after")
+    @classmethod
+    def _require_utc(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError(
+                "timestamp must include a UTC offset, "
+                "e.g. 2026-09-16T09:00:00Z"
+            )
+
+        return value.astimezone(timezone.utc)
 
 
 class HeartbeatIngestResult(BaseModel):

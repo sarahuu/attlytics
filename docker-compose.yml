@@ -1,0 +1,96 @@
+name: attlytics
+
+services:
+  db:
+    image: postgres:16-alpine
+    env_file: [./.env]
+    ports:
+      - "5433:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build: ./api
+    env_file:
+      - ./api/.env
+      - ./.env
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build: ./api
+    env_file:
+      - ./api/.env
+      - ./.env
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  worker:
+    build: ./api
+    env_file:
+      - ./api/.env
+      - ./.env
+    command: ["celery", "-A", "app.workers.celery_app:celery_app", "worker", "-l", "info", "-c", "2"]
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  beat:
+    build: ./api
+    env_file:
+      - ./api/.env
+      - ./.env
+    command: ["celery", "-A", "app.workers.celery_app:celery_app", "beat", "-l", "info"]
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  web:
+    image: node:22-alpine
+    working_dir: /app
+    command: ["sh", "-c", "npm install --no-fund --no-audit && npm run dev -- --host 0.0.0.0"]
+    env_file: [./.env]
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  db-data:

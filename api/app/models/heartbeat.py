@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, Integer, String, Text, Uuid, func, text, UniqueConstraint, ForeignKey
+from sqlalchemy import Index, DateTime, Float, Integer, String, Text, Uuid, func, text, UniqueConstraint, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.choices import EventType, Source
@@ -66,5 +66,16 @@ class Session(Base):
             "device_id",
             "state_id",
             name="uq_sessions_user_device_state",
+        ),
+        Index(
+            "ix_sessions_user_start_time",
+            "user_id",
+            "start_time",
+        ),
+        Index(
+            "ix_sessions_user_application_start_time",
+            "user_id",
+            "application",
+            "start_time",
         ),
     )

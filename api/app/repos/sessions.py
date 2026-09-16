@@ -2,7 +2,18 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Float, case, cast, func, literal_column, select, update
+from sqlalchemy import (
+    Float,
+    and_,
+    case,
+    cast,
+    distinct,
+    func,
+    literal_column,
+    or_,
+    select,
+    update,
+)
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +24,34 @@ class ActivityRepository:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    @staticmethod
+    def _session_filters(
+        user_id: UUID,
+        start: datetime,
+        end: datetime,
+        *,
+        application: str | None = None,
+        device_id: UUID | None = None,
+        source: str | None = None,
+    ) -> list:
+
+        filters = [
+            Session.user_id == user_id,
+            Session.start_time >= start,
+            Session.start_time < end,
+        ]
+
+        if application is not None:
+            filters.append(Session.application == application)
+
+        if device_id is not None:
+            filters.append(Session.device_id == device_id)
+
+        if source is not None:
+            filters.append(Session.source == source)
+
+        return filters
 
     async def get_pending_events(
         self,
@@ -97,3 +136,154 @@ class ActivityRepository:
             .where(Heartbeat.id.in_(event_ids))
             .values(processed_at=now)
         )
+
+    async def list_sessions(
+        self,
+        user_id: UUID,
+        start: datetime,
+        end: datetime,
+        *,
+        application: str | None = None,
+        device_id: UUID | None = None,
+        source: str | None = None,
+        cursor: tuple[datetime, UUID] | None = None,
+        limit: int = 50,
+    ) -> list[Session]:
+
+        filters = self._session_filters(
+            user_id,
+            start,
+            end,
+            application=application,
+            device_id=device_id,
+            source=source,
+        )
+
+        if cursor is not None:
+            cursor_start, cursor_id = cursor
+            filters.append(
+                or_(
+                    Session.start_time < cursor_start,
+                    and_(
+                        Session.start_time == cursor_start,
+                        Session.id < cursor_id,
+                    ),
+                )
+            )
+
+        result = await self.db.execute(
+            select(Session)
+            .where(*filters)
+            .order_by(
+                Session.start_time.desc(),
+                Session.id.desc(),
+            )
+            .limit(limit)
+        )
+
+        return list(result.scalars().all())
+
+    async def get_session(
+        self,
+        user_id: UUID,
+        session_id: UUID,
+    ) -> Session | None:
+
+        result = await self.db.execute(
+            select(Session).where(
+                Session.id == session_id,
+                Session.user_id == user_id,
+            )
+        )
+
+        return result.scalar_one_or_none()
+
+    async def summarize_sessions(
+        self,
+        user_id: UUID,
+        start: datetime,
+        end: datetime,
+        tz: str,
+        *,
+        device_id: UUID | None = None,
+    ):
+
+        local_day = func.date_trunc(
+            "day", func.timezone(tz, Session.start_time)
+        )
+
+        result = await self.db.execute(
+            select(
+                func.coalesce(
+                    func.sum(Session.duration_seconds), 0.0
+                ).label("total_seconds"),
+                func.count().label("session_count"),
+                func.count(distinct(local_day)).label("active_days"),
+                func.max(Session.duration_seconds).label(
+                    "longest_session_seconds"
+                ),
+                func.min(Session.start_time).label("first_activity"),
+                func.max(
+                    func.coalesce(Session.end_time, Session.start_time)
+                ).label("last_activity"),
+            ).where(
+                *self._session_filters(
+                    user_id, start, end, device_id=device_id
+                )
+            )
+        )
+
+        return result.one()
+
+    async def time_per_application(
+        self,
+        user_id: UUID,
+        start: datetime,
+        end: datetime,
+        *,
+        device_id: UUID | None = None,
+        limit: int = 20,
+    ):
+
+        total_seconds = func.coalesce(
+            func.sum(Session.duration_seconds), 0.0
+        )
+
+        result = await self.db.execute(
+            select(
+                Session.application,
+                total_seconds.label("total_seconds"),
+                func.count().label("session_count"),
+            )
+            .where(
+                *self._session_filters(
+                    user_id, start, end, device_id=device_id
+                )
+            )
+            .group_by(Session.application)
+            .order_by(total_seconds.desc())
+            .limit(limit)
+        )
+
+        return list(result.all())
+
+    async def total_duration(
+        self,
+        user_id: UUID,
+        start: datetime,
+        end: datetime,
+        *,
+        device_id: UUID | None = None,
+    ) -> float:
+
+        result = await self.db.execute(
+            select(
+                func.coalesce(func.sum(Session.duration_seconds), 0.0)
+            ).where(
+                *self._session_filters(
+                    user_id, start, end, device_id=device_id
+                )
+            )
+        )
+
+        return float(result.scalar_one())

@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     def refresh_cookie_path(self) -> str:
         return f"{self.api_v1_prefix.rstrip('/')}/auth"
 
+    @property
+    def api_root(self) -> str:
+        return self.api_v1_prefix.rstrip("/").rsplit("/", 1)[0]
+
 
 @lru_cache
 def get_settings() -> Settings:
